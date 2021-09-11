@@ -1,0 +1,502 @@
+---
+title: "Dimentionality_reduction & Feature_selection"
+author: "Mildred Kulei"
+date: "9/10/2021"
+output:
+  pdf_document: default
+  html_document: default
+  
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tinytex)
+```
+
+```{r, include=FALSE}
+options(tinytex.verbose = TRUE)
+```
+
+
+# 1. Problem Definition
+## 1.1 Specifying the Question
+### what is the most relevant marketing strategies that will result in the highest no. of sales (total price including tax) in carrefour Kenya.
+
+## 1.2 Metric for success
+### Come up with an analysis that will make our client identify the relevant marketing strategies to increase the company's sales.
+
+## 1.3 Understanding the Context
+### Carrefour was launched in kenya in 1999 and today it operates five hypermarkets and five supermarkets, employing over 1800 colleagues.
+
+###Carrefour operates different store formats, to meet the growing needs of its diversified customer base. In line with the brand’s commitment to provide the widest range of quality products and value for money, Carrefour offers an unrivalled choice of more than 30,000 food and non-food products, and an exemplary customer experience to create great moments for everyone every day. In respect to this, the marketing team wants to be informed on the most relevant marketing strategies that will result in the highest no. of sales (total price including tax). 
+
+
+
+## 1.4 Experimental Design taken
+1. Problem Definition
+2. Data Sourcing
+3. Check the Data
+4. Perform Data Cleaning
+5. Perform Exploratory Data Analysis  
+6. Implement the Solution
+7. Challenge the Solution
+8. Follow up Questions
+
+## 1.5 Data relevance 
+### The data collected is relevant as it is was provided by the client from the company's database. 
+
+# 2. Data Sourcing
+## Loading the data
+## Loading the necessary packages
+``` {r}
+library("data.table")
+sales1 <- read.csv("Supermarket_Dataset_1 - Sales Data.csv")
+```
+
+# 3. checking the data
+
+```{R}
+##Previewing the first 6 rows of dataset
+
+head(sales1)
+
+##Previewing the last 6 rows of dataset
+
+tail(sales1)
+
+##Basic structure of the data
+str(sales1)
+```
+
+```{r}
+# previewing the column names
+colnames(sales1)
+```
+
+```{r}
+# previewing the dataset
+class(sales1)
+```
+
+```{r}
+# previewing the datatypes of the dataset
+sapply(sales1, class)
+```
+
+```{r}
+# checking the shape of the data
+dim(sales1)
+```
+The dataset has 1000 records of data and 16 columns.
+
+# 4. Perform Data Cleaning
+
+## missing values
+```{R}
+# checking for missing values
+sum(is.na(sales1))
+```
+no missing values.
+
+## Duplicates
+```{r}
+# Identifying duplicates
+duplicates <- sales1[duplicated(sales1), ]
+head(duplicates)
+```
+There are no duplicates
+
+## Outliers
+
+```{r}
+#install.packages("dplyr")    # alternative installation of the %>%
+
+library(dplyr)
+```
+
+
+```{R}
+numeric_df <- sales1 %>% select_if(is.numeric)
+boxplot(numeric_df)
+```
+We notice that the column Cogs and Total have a few outliers
+
+## changing column names to make them uniform
+```{r}
+colnames(sales1) = tolower(colnames(sales1))
+```
+
+```{r}
+#to confirm the change
+names (sales1)
+```
+## Dropping columns that we do not need
+
+```{r}
+#gross.income and tax are the same so we will drop one, 
+#we also don't need invoice id in our analysis.
+
+sales1[ ,c('tax','invoice.id')] <- list(NULL)
+```
+
+```{r}
+#to confirm they have been deleted
+names(sales1)
+```
+
+```{r}
+#separating the date column into 'year','month','day'
+library(tidyr)
+
+sales1_date <- separate(sales1, date, c("month", "day", "year"))
+head(sales1_date,n=2) 
+```
+
+
+We notice that our data is from the year 2019
+
+```{r}
+library(tidyverse)
+library(magrittr) 
+
+#Factors are used to represent categorical data and are important for statistical analysis and for plotting.
+#For the categorical data we will change to levels
+
+sales1_cat= c('branch', 'customer.type', 'gender', 'product.line', 'payment', 'year','month','day')
+
+# Changing columns to factors
+
+sales1_date[,sales1_cat] %<>% lapply(function(x) as.factor(as.character(x)))
+str(sales1_date)
+```
+We observe that:
+there rae two types of customer; member and normal.
+There are three branches.
+there are two types of gender.
+There are three types of payments.
+the data is only for 2019.
+we have 3 months and 31 days.
+there are 6 types of product line.
+
+
+```{r}
+#we separate our datatypes columns we divide them into numerical and into categorical
+# we had already defined categorical but need numerical
+
+sales1_num <- subset(sales1_date, select = c(unit.price, quantity,cogs,gross.margin.percentage, gross.income, rating ,total))
+head(sales1_num,n=3)
+```
+```{r}
+#we can go ahead and change the above dataframes into tibbles for easier 
+sales1_numt<-as_tibble(sales1_num)
+head(sales1_numt,n=3)
+```
+```{R}
+sales1_cat <- subset(sales1_date, select = c(branch, customer.type, gender, product.line, payment, year,month,day))
+head(sales1_cat,n=3)
+```
+
+
+```{r}
+#category columns as tible
+sales1_cat_t<-as_tibble(sales1_cat)
+head(sales1_cat_t,n=3)
+```
+
+
+# 5. Exploratory Data Analysis  (Univariate, Bivariate & Multivariate)
+
+## 5.1 Univariate Analysis
+```{r}
+library(ggplot2)
+library(psych)
+
+#Descriptive analysis into measures of central Tendency
+
+describe(sales1_numt)
+
+```
+There are 13 numerical column
+the highest mean are from total and cogs variable, and lowest from quantity and rating.
+the highest unit cost 100 and lowest cost 10 with most of it at 55.
+the higest rating is 10 and minimum is at 4 with most of ratings at 7.
+the quantiies of most unit is 5 with highest at 10 and minimum 1.
+
+
+```{r}
+par(mfrow = c(2, 2))
+hist(sales1_numt$unit.price)
+hist(sales1_numt$quantity)
+hist(sales1_numt$cogs) 
+hist(sales1_numt$gross.margin.percentage) 
+hist(sales1_numt$gross.income) 
+hist(sales1_numt$rating) 
+hist(sales1_numt$total)
+
+```
+
+```{r}
+par(mfrow = c(2, 2))
+f1 <- sales1_cat$branch
+f1y<- table(f1) 
+head.matrix(f1y)
+f2 <- sales1_cat$customer.type
+f2y<- table(f2) 
+head.matrix(f2y)
+f3 <- sales1_cat$gender 
+f3y<- table(f3)
+head.matrix(f3y)
+f4 <- sales1_cat$product.line 
+f4y<- table(f4) 
+head.matrix(f4y)
+f5 <- sales1_cat$payment
+f5y<- table(f5)
+head.matrix(f5y)
+f6 <- sales1_cat$month
+f6y<- table(f6) 
+head.matrix(f6y)
+f7 <- sales1_cat$day 
+f7y<- table(f7)
+head.matrix(f7y)
+```
+the higest bought product is fashion accessories, and the lowest is health and beauty.
+the customer types both ahve almos same number of customers.
+the first month had highest sales then followed by the third and lastly the secodn month.
+both genders have almost same numbers.
+
+
+```{r}
+# fetching the columns
+products <- sales1_cat$product.line
+
+# fetching the frequency distribution
+product_frequency <- table(products)
+
+# plotting the bargraph
+barplot(product_frequency,  xlab = 'ProductRelated', ylab = 'frequency',  main = 'barplot on products')
+```
+
+Health and beauty had the lowest sales though not much worrying difference.
+
+## 5.2 Bivariate analysis
+
+```{r}
+sales1_date %>%
+ggplot() +
+aes(x = day, gross.income = ..count../nrow(sales1_date), fill = gross.income) +
+geom_bar() +
+ylab("daily revenue trends")
+```
+Day 15 had most highest revenue collected followed by day 25th, day 31 had the lowest revenue collected.
+
+```{r}
+sales1_date %>%
+ggplot() +
+aes(x = quantity, payment = ..count../nrow(sales1_date), fill = payment) +
+geom_bar() +
+ylab("payment sales trends")
+```
+
+
+```{r}
+sales1_date %>%
+ggplot() +
+aes(x = quantity, month = ..count../nrow(sales1_date), fill = month) +
+geom_bar() +
+ylab("monthly sale trends")
+```
+Month 1, customers who bought 10 items where high, and those who bought 8 items where the lowest.
+
+```{r}
+sales1_date %>%
+ggplot() +
+aes(x = quantity, product.line = ..count../nrow(sales1_date), fill = product.line) +
+geom_bar() +
+ylab("product sales trends")
+```
+most customers take 10 items of electronic accessories, fashion accessories, health & beauty and food & bevarages
+6 items of home&lifestyle had most sales
+7 items of sports&travel had most sales.
+
+
+```{r}
+sales1_date %>%
+ggplot() +
+aes(x = quantity, branxh = ..count../nrow(sales1_date), fill = branch) +
+geom_bar() +
+ylab("branch sale trends")
+```
+all the branches had most of its customers purches 10 items
+
+```{r}
+#Distribution of income per Branch
+ggplot(sales1_date,aes(x = total, fill = branch)) +geom_density(alpha = 0.4) +labs(title = "Distribution of total sales per branch")
+```
+branch A and B have highest sales between 1 & 300, then all branches experience low sales toward 100 shilling.
+
+```{r}
+#Distribution of income per Gender
+ggplot(sales1_date,aes(x = total, fill = gender)) +geom_density(alpha = 0.4) +labs(title = "Distribution of total sales per Gender")
+```
+the female buy items totaling to 250 more than males, while the males buy items totalling to a thousand more tha females.
+
+```{r}
+#Distribution of income per Gender
+ggplot(sales1_date,aes(x = total, fill = customer.type)) +geom_density(alpha = 0.4) +labs(title = "does membership affect sales")
+```
+cystomer type-member generate more sales than the normal type.
+
+```{r}
+library(ggplot2)
+library(corrplot)
+```
+
+```{R}
+#Printing out correlations in our dataset
+cols <-cor(sales1_num)
+cols
+```
+
+
+
+```{r}
+#removing the grossmargin percantage as it has std of 0.
+sales1_numt[ ,c('gross.margin.percentage')] <- list(NULL)
+```
+
+
+```{r}
+#Printing out correlations in our dataset
+cols <-cor(sales1_numt)
+cols
+```
+
+
+```{r}
+corrplot(cor(cols), method="shade", tl.col="black", tl.srt=45)
+```
+There is an evident of positive correlation between the following columns:
+
+cogs
+gross income
+total
+unit price
+
+The following columns are negatively linear:
+
+rating
+quantity
+
+
+# 6. Implement the Solution
+
+## Part 1: Dimensionality Reduction
+### PCA
+
+```{r}
+#We had already ran the numericals and dropped redundant columns 
+#we named it sales1_numt
+
+pca <- prcomp(sales1_numt[,c(1:6)], center = TRUE, scale = TRUE)
+summary(pca)
+```
+Proportion of Variance: This is the amount of variance the component accounts for in the data, ie PC1 accounts for 65.5% of total variance in the data alone!
+Cumulative Proportion: This is simply the accumulated amount of explained variance, ie. if we used the first 3 components we would be able to account for 98% of total variance in the data
+
+```{r}
+#used the string function to know which variables were to be consindered
+str(pca)
+
+```
+### Here we note the center point ($center), scaling ($scale),standard deviation(sdev) of each principal component. 
+### The relationship (correlation or anticorrelation, etc) between the initial variables and the principal components ($rotation). 
+### The values of each sample in terms of the principal components ($x)
+
+```{r}
+# We will now plot our pca. This will provide us with some very useful insights
+
+# Installing our ggbiplot visualisation package
+# 
+library(devtools)
+#install_github("vqv/ggbiplot")
+```
+
+```{r}
+# Then Loading our ggbiplot library
+#  
+library(ggbiplot)
+ggbiplot(pca)
+```
+we notice that unit price, quantity, rating and grossincome were the four variables to be highly consindered during modelling.
+
+```{r}
+#adding more details
+#plotting the PCA to see the above visually
+#we will use ggbiplot library
+library(ggbiplot)
+```
+
+```{r}
+ggbiplot(pca, obs.scale = 0.5, var.scale = 0.5, groups = sales1_date$customer.type,ellipse = TRUE, circle = TRUE)
+```
+we see that whether the customer is loyal or new customer the four variables will explain 65.5% plus 16.7% making it 81.2 variance which is fairly high.
+
+
+## Part 2: Feature Selection
+
+### Wrapper Method
+```{r}
+# Installing and loading our clustvarsel package
+
+                         
+library(clustvarsel)
+
+```
+
+```{r}
+# Installing and loading our mclust package
+library(mclust)
+```
+
+```{r}
+# Sequential forward greedy search (default)
+# ---
+#
+out = clustvarsel(sales1_numt)
+out
+```
+
+we  see that the columns quantity,cogs and unitprice have been accepted and can be used for modelling.This is a more accurate way of feature selection.
+
+```{r}
+# The selection algorithm would indicate that the subset 
+# we use for the clustering model is composed of variables quantity, unit price, cogs
+# and that other variables should be rejected. 
+# Having identified the variables that we use, we proceed to build the clustering model:
+# ---
+#
+
+Subset1 = sales1_numt[,out$subset]
+mod = Mclust(Subset1)
+summary(mod)
+```
+
+# 7. Recommendation
+
+From Dimentionality reduction model:
+1.Quantity
+2.Unit price
+3.gross income
+4.rating
+
+feater selection model:
+1.Quantity 
+2.Cogs
+3.Unit price
+
+The feature selection model gave us the best outcome for consideration of what impact the sales in carefore kenya.
+
